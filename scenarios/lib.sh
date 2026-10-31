@@ -5,6 +5,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT}"
 : "${STAMP:?}"
 AUTHOR="${AUTHOR:-bot3}"
+APPROVER=bot2
+DEFAULT_REVIEWER=bot1
 SCENARIO="$(basename "$0" .sh)"
 RUN_ID="$(tr "[:upper:]" "[:lower:]" <<<"${STAMP}")"
 export EVIDENCE_DIR="${ROOT}/evidence/${STAMP}/${SCENARIO}"
@@ -14,10 +16,28 @@ SETTLE_SECONDS="${SETTLE_SECONDS:-12}"
 
 b() {
   local who="$1" step="$2" verb="$3"; shift 3
-  local rc=0
-  A="$(./"${who}.sh" "${verb}" --name "${step}" "$@")" || rc=$?
-  printf '%s %s %s\n' "${step}" "$(jq -r '.status' <<<"${A}")" "$(jq -c '{state: .body.state, type: .body.type, error: .body.error.message}' <<<"${A}")" | tee -a "${EVIDENCE_DIR}/steps.txt"
+  local rc code attempt=1
+  while :; do
+    rc=0
+    A="$(./"${who}.sh" "${verb}" --name "${step}" "$@")" || rc=$?
+    code="$(jq -r '.status' <<<"${A}" 2>/dev/null || true)"
+    printf '%s %s %s %s\n' "${step}" "${code}" "$(jq -c '{state: .body.state, type: .body.type, error: .body.error.message}' <<<"${A}")" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" | tee -a "${EVIDENCE_DIR}/steps.txt"
+    case "${code}" in
+      5??)
+        # A merge is never retried; any other call once.
+        if [[ "${verb}" == merge || "${attempt}" == 2 ]]; then echo "${step}: stopped, ${code}" >&2; exit 4; fi
+        attempt=2; continue ;;
+    esac
+    break
+  done
   [[ "${rc}" == 0 ]] || { echo "${step}: stopped, exit ${rc}" >&2; return "${rc}"; }
+}
+# checks_step <bot> <step> <pull request>: runs `checks` and prints one line: each entry's type, kind, status and reason.
+checks_step() {
+  b "$1" "$2" checks --pr "$3"
+  jq -r '.body as $b | if ($b|type) == "object" and ($b.values|type) == "array"
+    then "\($b.values | map("\(.type // "?")/\(.check.kind // .kind // "-")=\(.status // "?")(\(.reason // "-"))") | join(" "))"
+    else "shape: \(if ($b|type) == "object" then ($b|keys|join(",")) else ($b|type) end)" end' <<<"${A}" | tee -a "${EVIDENCE_DIR}/steps.txt"
 }
 pr_id() { jq -r '.body.id' <<<"${A}"; }
 delivery_count() { [[ -f "${DELIVERIES}" ]] && wc -l <"${DELIVERIES}" | tr -d ' ' || echo 0; }

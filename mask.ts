@@ -22,7 +22,7 @@ export function readFixtures(): Fixtures {
 }
 
 const KEPT_KEYS = new Set([
-  'approved', 'close_source_branch', 'comment_count', 'created_on', 'date', 'draft', 'event', 'id', 'label',
+  'approved', 'close_source_branch', 'comment_count', 'created_on', 'date', 'draft', 'event', 'id', 'kind', 'label',
   'method', 'verb',
   'merge_strategies', 'merge_strategy', 'default_merge_strategy', 'queued', 'reason', 'role', 'state', 'status',
   'task_count', 'task_status', 'title', 'type', 'updated_on',
@@ -47,7 +47,7 @@ function escaped(literal: string): string {
 
 /** Whole occurrences only, so a short slug never eats part of an ordinary word. */
 function sweep(text: string, literals: string[]): string {
-  let out = text.replace(/https?:\/\/[^\s"')]+/g, '<url>').replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, '<email>');
+  let out = text.replace(/https?:\/\/[^\s"')]+/g, '<url>').replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, '<email>').replace(/\b[0-9a-f]{40}\b/g, '<hash>');
   for (const literal of literals) {
     const bounded = new RegExp(`(?<![A-Za-z0-9._-])${escaped(literal)}(?![A-Za-z0-9._-])`, 'gi');
     out = out.replace(bounded, () => '<masked>');
@@ -76,6 +76,8 @@ function walk(value: unknown, key: string, parents: string[], literals: string[]
     return out;
   }
   if (typeof value !== 'string') return value;
+  // Last-four masking of a link leaked a project key (round 1), so a link goes whole.
+  if (key === 'href') return '…';
   if (HASH_KEYS.has(key)) return `…${value.slice(-4)}(${value.length})`;
   if (value.startsWith('sim/') || value.startsWith('sim-')) return sweep(value, literals);
   const freeText = parents.some((parent) => FREE_TEXT_PARENTS.has(parent)) || key === 'error';

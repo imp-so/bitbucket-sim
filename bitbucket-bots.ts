@@ -35,6 +35,7 @@ const { values, positionals } = parseArgs({
     'default-reviewers': { type: 'boolean' },
     draft: { type: 'boolean' },
     files: { type: 'string' },
+    file: { type: 'string' },
     path: { type: 'string' },
     content: { type: 'string' },
     text: { type: 'string' },
@@ -196,7 +197,7 @@ const verbs: Record<string, () => Promise<void>> = {
     const branch = need('branch', values.branch);
     const main = await mainBranch();
     await commitTo(branch, main.hash, { [need('path', values.path)]: `${need('content', values.content)}\n` });
-    await openOn(branch, main.name, []);
+    await openOn(branch, main.name, await reviewerList());
   },
   async approve() {
     await call('POST', `${pullRequest()}/approve`);
@@ -216,7 +217,7 @@ const verbs: Record<string, () => Promise<void>> = {
     await call('POST', `${REPO}/commit/${commit.hash}/statuses/build`, {
       key: values.key ?? 'sim-build',
       state: need('state', values.state),
-      name: 'sim build',
+      name: values.key ?? 'sim-build',
       url: 'https://example.invalid/sim-build',
       description: 'the stand-in for CI',
     });
@@ -236,6 +237,35 @@ const verbs: Record<string, () => Promise<void>> = {
   },
   async read() {
     await call('GET', pullRequest());
+  },
+  /** One more commit on the pull request's source branch, so the head moves; the default content differs on each call. */
+  async push() {
+    const pr = must(await call('GET', pullRequest()), 200).body;
+    const branch: string = pr.source.branch.name;
+    await commitTo(branch, undefined, { [values.file ?? `${branch}/fix.txt`]: `${values.content ?? new Date().toISOString()}\n` });
+  },
+  /** The Sync button's nearest API form: a commit on the source branch whose parents are its head and the default
+   *  branch's tip. The answer is recorded and not judged, since the docs do not promise a two-parent commit here. */
+  async sync() {
+    const pr = must(await call('GET', pullRequest()), 200).body;
+    const main = await mainBranch();
+    const branch: string = pr.source.branch.name;
+    const head = must(await call('GET', `${REPO}/commit/${pr.source.commit.hash}`), 200).body;
+    const form = new URLSearchParams({ branch, parents: `${head.hash},${main.hash}`, message: `sim: sync ${branch}` });
+    await call('POST', `${REPO}/src`, form);
+  },
+  async checks() {
+    await call('GET', `${pullRequest()}/mergeability/checks`);
+  },
+  /** A 404 or 405 is the finding, so the answer is recorded and not judged. */
+  async 'request-changes'() {
+    await call('POST', `${pullRequest()}/request-changes`);
+  },
+  async statuses() {
+    await call('GET', `${pullRequest()}/statuses`);
+  },
+  async 'default-reviewers'() {
+    await call('GET', `${REPO}/effective-default-reviewers?pagelen=100`);
   },
   /** Creates or re-points the harness's own hook, found by its description, at the URL in the tunnel log. */
   async webhook() {

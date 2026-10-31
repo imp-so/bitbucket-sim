@@ -20,7 +20,7 @@ test('keeps ids, states and roles; masks names, links and account ids', () => {
     id: 7,
     state: 'OPEN',
     author: { display_name: '…rson', uuid: '…333}', account_id: '…bbbb' },
-    links: { self: { href: '…ts/7' } },
+    links: { self: { href: '…' } },
     participants: [{ role: 'REVIEWER', approved: true }],
     merge_commit: { hash: '…ef01(40)' },
   });
@@ -58,4 +58,21 @@ test('a slug inside an ordinary word stays', () => {
 test('a project key is masked and the harness\'s build key stays', () => {
   const out = maskAnswer({ project: { key: 'ABC' }, commit_status: { key: 'sim-build' } }, fixtures);
   assert.deepEqual(out, { project: { key: '…' }, commit_status: { key: 'sim-build' } });
+});
+
+test('kind, status and reason stay clear', () => {
+  const out = maskAnswer({ type: 'standard_merge_check', check: { kind: 'minimum_approvals' }, status: 'FAILED', reason: 'clean' }, fixtures);
+  assert.deepEqual(out, { type: 'standard_merge_check', check: { kind: 'minimum_approvals' }, status: 'FAILED', reason: 'clean' });
+});
+
+test('a link is masked whole, so no project key survives in its tail', () => {
+  const out = maskAnswer({ links: { html: { href: 'https://x.example.test/projects/ABCD/repos/r' } }, href: 'ABCD' }, fixtures);
+  assert.deepEqual(out, { links: { html: { href: '…' } }, href: '…' });
+});
+
+test('a full commit hash in free text is masked', () => {
+  const hash = 'abcdef0123456789abcdef0123456789abcdef01';
+  assert.deepEqual(maskAnswer({ error: { message: `The parent commit specified (${hash})` } }, fixtures), {
+    error: { message: 'The parent commit specified (<hash>)' },
+  });
 });

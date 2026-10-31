@@ -4,11 +4,11 @@ A harness that runs scripted pull request scenarios against the real Bitbucket C
 
 ## Layout
 
-- `bitbucket-bots.ts`: the CLI (`open`, `conflict`, `approve`, `unapprove`, `comment`, `close`, `status`, `merge`, `read`).
+- `bitbucket-bots.ts`: the CLI (`open`, `conflict`, `approve`, `unapprove`, `comment`, `close`, `status`, `merge`, `read`, and for round 2 `push`, `checks`, `request-changes`, `statuses`, `default-reviewers`).
 - `bot1.sh`, `bot2.sh`, `bot3.sh`: wrappers. `bot3` is the pull request author, so that bot1 and bot2 never approve their own work. Give bot3 webhook scopes as well, because it registers the hook.
 - `mask.ts`: the evidence masking (masked by default, with a list of kept keys). Test: `pnpm test`.
 - `receiver.ts`: the local webhook receiver on port 8787.
-- `scenarios/`: S1 to S9, `lib.sh` and `hygiene.sh`.
+- `scenarios/`: S1 to S12 and S14 to S16, `lib.sh` and `hygiene.sh`.
 - `evidence/<stamp>/`: the masked answers per scenario and `deliveries.jsonl`.
 - `.local/` (git-ignored): `fixtures.json` (copy `fixtures.example.json`) and the tunnel log.
 - `tunnel.sh`: one shot. Starts the tunnel and registers the hook.
@@ -36,6 +36,12 @@ STAMP=<stamp> scenarios/hygiene.sh
 ```
 
 Each `<bot>.sh` call reads the credential from SSM into its own process. S2, S5 to S9 merge into the fixtures default branch. S9 adds `FILES` files (default 1500).
+
+## Round 2 scenarios
+
+S10 to S12 and S14 to S16 run the pull request cycle: required builds, a fix commit after approvals, a reviewer's change request, roles, an edit/edit conflict, a FAILED build at merge time. New verbs: `push --pr <id> [--file <path>] [--content <text>]` (one more commit on the source branch), `checks --pr <id>` (`mergeability/checks`), `request-changes --pr <id>` (a 404 or 405 is the finding), `statuses --pr <id>`, `default-reviewers`. `status --key <key>` posts a build under that key and name; the scenarios use `sim-build-a` and `sim-build-b`. Roles: bot3 is the author, bot2 the approver, bot1 the default reviewer.
+
+The default branch's rule needs: two approvals, one of them from a default reviewer; "Reset approvals when the source branch is modified" on; "Prevent a merge with unresolved merge checks" on; at least two successful builds. S13 is the checks calls inside the others. A 5xx stops a scenario with exit 4 (one retry first, none for a merge). `steps.txt` lines end with a UTC time, to match deliveries to steps.
 
 ## Never
 
