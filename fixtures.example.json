@@ -1,0 +1,7 @@
+{
+  "workspace": "your-workspace",
+  "repository": "your-fixtures-repository",
+  "vaultProfile": "your-aws-vault-profile",
+  "region": "eu-central-1",
+  "parameterPrefix": "/your/ssm/prefix/bitbucket"
+}
