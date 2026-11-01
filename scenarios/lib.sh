@@ -46,3 +46,10 @@ events_since() {
   sleep "${SETTLE_SECONDS}"
   tail -n "+$(( $1 + 1 ))" "${DELIVERIES}" 2>/dev/null | jq -r --arg pr "${2:-}" 'select($pr == "" or .pullRequest == null or (.pullRequest|tostring) == $pr) | "\(.at) \(.eventKey) pr=\(.pullRequest)"' | tee "${EVIDENCE_DIR}/events.txt"
 }
+# statuses_step <bot> <step> <pull request>: runs `statuses` and prints one line: a count per state and the total. Keys stay out.
+statuses_step() {
+  b "$1" "$2" statuses --pr "$3"
+  jq -r '.body as $b | if ($b|type) == "object" and ($b.values|type) == "array"
+    then "statuses: \($b.values | group_by(.state) | map("\(.[0].state // "?")=\(length)") | join(" ")) total=\($b.values | length)"
+    else "shape: \(if ($b|type) == "object" then ($b|keys|join(",")) else ($b|type) end)" end' <<<"${A}" | tee -a "${EVIDENCE_DIR}/steps.txt"
+}

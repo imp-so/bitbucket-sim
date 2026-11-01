@@ -1,0 +1,18 @@
+# Pipelines publishes one status per run, so one step tries to post a second status through the Pipelines proxy, on both
+# addresses. Round 3's first try answered 502 on localhost and failed the run, so a refusal no longer fails the step.
+# Only S18 branches run, so that the sim statuses of the other scenarios stay alone.
+image: atlassian/default-image:4
+pipelines:
+  branches:
+    'sim/*-s18':
+      - step:
+          name: second status
+          script:
+            - export URL="http://api.bitbucket.org/2.0/repositories/$BITBUCKET_REPO_FULL_NAME/commit/$BITBUCKET_COMMIT/statuses/build"
+            - export BODY='{"key":"pipeline-second","state":"SUCCESSFUL","name":"pipeline-second","url":"https://example.invalid/pipeline-second"}'
+            - post() { curl -sS --fail -o /dev/null -w 'proxy %{http_code}\n' --proxy "$1" -X POST -H 'Content-Type:application/json' -d "$BODY" "$URL"; }
+            - post http://localhost:29418 || post http://host.docker.internal:29418 || echo no second status
+      - step:
+          name: always pass
+          script:
+            - echo passed

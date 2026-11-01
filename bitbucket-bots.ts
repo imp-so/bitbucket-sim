@@ -264,6 +264,20 @@ const verbs: Record<string, () => Promise<void>> = {
   async statuses() {
     await call('GET', `${pullRequest()}/statuses`);
   },
+  /** The latest run's steps and the last lines of each step's log, masked as free text. */
+  async 'pipeline-log'() {
+    const runs = must(await call('GET', `${REPO}/pipelines/?sort=-created_on&pagelen=1`), 200).body;
+    const run = runs.values[0];
+    const steps = must(await call('GET', `${REPO}/pipelines/${encodeURIComponent(run.uuid)}/steps/`), 200).body;
+    const logs = [];
+    for (const item of steps.values) {
+      const url = `${REPO}/pipelines/${encodeURIComponent(run.uuid)}/steps/${encodeURIComponent(item.uuid)}/log`;
+      const response = await fetch(url, { headers: { Authorization: authorization }, redirect: 'follow' });
+      const text = await response.text();
+      logs.push({ status: response.status, stepState: item.state?.result?.name ?? item.state?.name, tail: text.split('\n').slice(-12).join('\n') });
+    }
+    last = record('GET', '/pipelines/<latest>/steps/log', { status: 200, body: { pipelineState: run.state?.result?.name ?? run.state?.name, error: { fields: logs } } });
+  },
   async 'default-reviewers'() {
     await call('GET', `${REPO}/effective-default-reviewers?pagelen=100`);
   },
@@ -275,7 +289,10 @@ const verbs: Record<string, () => Promise<void>> = {
     const hooks = must(await call('GET', `${REPO}/hooks?pagelen=100`), 200).body;
     const mine = hooks.values.filter((hook: { description: string }) => hook.description === HOOK_DESCRIPTION);
     if (mine.length > 1 || hooks.next) throw new Error('more than one candidate hook; nothing changed');
-    const body = { description: HOOK_DESCRIPTION, url, active: true, events: HOOK_EVENTS };
+    // The secret comes through the environment alone and is left out when unset; request bodies never reach the evidence.
+    const secret = process.env.WEBHOOK_SECRET;
+    if (secret) secrets.push(secret);
+    const body = { description: HOOK_DESCRIPTION, url, active: true, events: HOOK_EVENTS, ...(secret ? { secret } : {}) };
     if (mine.length === 1) must(await call('PUT', `${REPO}/hooks/${encodeURIComponent(mine[0].uuid)}`, body), 200);
     else must(await call('POST', `${REPO}/hooks`, body), 200, 201);
   },

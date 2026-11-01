@@ -76,3 +76,8 @@ test('a full commit hash in free text is masked', () => {
     error: { message: 'The parent commit specified (<hash>)' },
   });
 });
+
+test('a uuid in free text is masked', () => {
+  const out = maskAnswer({ error: { message: 'Log in step {11111111-2222-4333-8444-555555555555} does not exist.' } }, fixtures);
+  assert.deepEqual(out, { error: { message: 'Log in step {<uuid>} does not exist.' } });
+});

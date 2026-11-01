@@ -8,7 +8,7 @@ if [[ -f .local/tunnel.pid ]] && kill -0 "$(cat .local/tunnel.pid)" 2>/dev/null;
   kill "$(cat .local/tunnel.pid)"
 fi
 : >"${LOG}"
-nohup cloudflared tunnel --no-autoupdate --url http://localhost:8787 >"${LOG}" 2>&1 &
+nohup env -u WEBHOOK_SECRET cloudflared tunnel --no-autoupdate --url http://localhost:8787 >"${LOG}" 2>&1 &
 echo $! >.local/tunnel.pid
 disown
 for _ in $(seq 1 30); do

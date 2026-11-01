@@ -23,7 +23,7 @@ Tokens are SSM parameters under `parameterPrefix`, read through `aws-vault` with
 4. Copy `fixtures.example.json` to `.local/fixtures.json` and fill it in. Do this before step 2.
 5. In Bitbucket, on the fixtures repository: add bot1 as a default reviewer. On the default branch's rule, set two approvals and one approval from a default reviewer, and turn on "Prevent a merge with unresolved merge checks". The docs list that option as Premium only. Without it the rule only warns and merges go through.
 6. Install with `NODE_OPTIONS=--use-system-ca pnpm install` if your machine's TLS inspection makes Node reject the registry.
-7. Start the receiver: `pnpm exec tsx receiver.ts <stamp>`.
+7. Start the receiver: `pnpm exec tsx receiver.ts <stamp>`. `./signed-up.sh <stamp>` starts the receiver and the tunnel with a new webhook secret held only in their environment. `FAIL_EVENT=<event key> FAIL_ATTEMPTS=<n>` makes the receiver answer 500 to that event up to attempt n, to show Bitbucket's retries.
 8. Run `./tunnel.sh`. It starts the tunnel and points the hook at it. A new tunnel gives a new URL, so run it again after a restart.
 
 ## Running
@@ -46,3 +46,11 @@ The default branch's rule needs: two approvals, one of them from a default revie
 ## Never
 
 A token in a file, a log, a transcript or an argument; a write outside the fixtures repository; an AWS write from the harness; an unmasked workspace, repository, user id or email in any output. Evidence is git-ignored.
+
+## Round 3
+
+`STAMP=<stamp> scenarios/run.sh <scenario>` runs a scenario (arguments through the environment) only while the receiver answers on 127.0.0.1:8787, writes its output to `evidence/<stamp>/<scenario>.out`, and appends `<scenario> rc=<n> receiver=<up|down> <UTC time>` to `evidence/<stamp>/rc.txt`; it exits 5 when the receiver is down afterwards. `RUN_LABEL` names the line and the output file, for the S18 phases (`s18-prepare`). `hygiene.sh` also counts files holding a 40-hex string. `statuses_step` in `lib.sh` prints a count per build state and the total.
+
+`fixtures/bitbucket-pipelines.yml` gives the repository two Pipelines steps, one posting a second status through the Pipelines proxy (unverified). It runs only on branches matching `sim/*-s18`, so the sim statuses of the other scenarios stay alone; no other scenario branch may end in `-s18`. `scenarios/s18-setup.sh` puts it on the default branch through a pull request.
+
+S18 runs in three phases that share `evidence/<stamp>/s18`: `PHASE=prepare` (open, wait up to 10 minutes for two SUCCESSFUL builds, approvals, merge a mover; prints the pull request id and saves it to `pr.txt`), then the operator presses Sync, `PHASE=watch` (polls the head, statuses and checks every 30 s for up to 10 minutes), and `PHASE=after` (approve again if needed, merge, events). S19 to S22 cover an open change request, a push after one, the "No changes are requested" box and in-progress builds.

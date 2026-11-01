@@ -47,7 +47,7 @@ function escaped(literal: string): string {
 
 /** Whole occurrences only, so a short slug never eats part of an ordinary word. */
 function sweep(text: string, literals: string[]): string {
-  let out = text.replace(/https?:\/\/[^\s"')]+/g, '<url>').replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, '<email>').replace(/\b[0-9a-f]{40}\b/g, '<hash>');
+  let out = text.replace(/https?:\/\/[^\s"')]+/g, '<url>').replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, '<email>').replace(/\b[0-9a-f]{40}\b/g, '<hash>').replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/g, '<uuid>');
   for (const literal of literals) {
     const bounded = new RegExp(`(?<![A-Za-z0-9._-])${escaped(literal)}(?![A-Za-z0-9._-])`, 'gi');
     out = out.replace(bounded, () => '<masked>');
